@@ -121,4 +121,18 @@ A feature of Dalvik must highlighting is that: it includes a Just-in-Time (JIT) 
 
 
 3. System services:
+System server, whose components all run in the same process system_server, which is mostly made up of Java-coded services. Another set of system services is housed in the Media Service, which runs as mediaserver. These services are all coded in C/C++. In the Android shell, type in $ service list; to see all the services.
+* If a system service isn't registered with the ServiceManager, then it's effectively invisible to the rest of the system. To provide this indexing capability, the ServiceManager is started by init before any other services. It then opens /dev/binder and use a special ioctl() call to set itself as the Binder's Context Manager. Thereafter, any process in the system that attempts to communicate with Binder ID 0 is actually comminicating (through Binder) to the ServiceManager.
+See Figure 2-5 in "Embedded Android" on P69 for more details.
 
+
+4. System startup:
+See Figure 2-6 in "Embedded Android" on P74 for more details.
+* CPU boots up.
+* Bootloader initializes RAM, basic hardware, loads the kernel and RAM disk, jumps to the kernel.
+* Initializing environment to run C code, initializing kernel subsystems, initializing all drivers, mount root fs, start the init process.
+* When Android's init kicks in, executing the instructions stored in /init.rc, setup environment variables, create mount points, set OOM adjustments, start native daemons. (ServiceManager is started before Zygote and system_server.)
+* Zygote is a special daemon whose job is to launch apps, unify the components shared by all apps and to shorten their startup time. The init doesn't actually start the zygote directly, it uses the app_process command to get Zygote started by the Android Runtime. The runtime then starts the 1st Dalvik VM and tells it to invoke the Zygote's main().
+* Zygote is active only when a new app needs to be launched. To achieve a speedier app launch, the Zygote starts by preloading all Java classes and resources that an app may potentially need at runtime. Zygote then listens for connections on its socket (/dev/socket/zygote) for requests to start new apps. When it gets a request to start an app, it forks itself and launches the new app. (Using COW, regardless of the number of apps running on the system, only one copy of the system classes and the resources is ever loaded in RAM.)
+* There's one "app" that Zygote starts explicitly: the system server. This is the first app started by Zygote. System server starts initializing each system service it houses and registering it with the previously started ServiceManager. One of the services it starts, the ActivityManager, will end initialization by sending an intent of the type: Intent.CATEGORY_HOME. This starts the Launcher app which then displays home screen.
+* Also note that the first process started by Android init is actually ueventd. (You could check /init.rc, on early_init: start ueventd # This should occur before anything else is started.) And you could use ps to check that after certain time all the processes have the same PPID - PID of Zygote.
