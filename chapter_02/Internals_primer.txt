@@ -1,0 +1,124 @@
+1. Android concepts:
+• Components:
+Android applications consist of loosely tied components. Components of one app can invoke or use components of other apps. Most importantly, there is no entry point to an Android app: no main() function or any equivalent. Instead, there're predefined events called intents that developers can tie their components to, thereby enabling their compenents to be activated on the occurrence of the corresponding events.
+An app, therefore, can have as many entry points as it has components. There're 4 main types of components:
+i)   Activities:
+Activities are the main building block in an Android app. Activities always take the entirety of the visual area and are made to be stacked on top of one another in the same way as a browser. All android devices have a Back button. 
+One globally defined Android intent allows an activity to be displayed as an icon on the app launcher. Because most apps want to appear on the main app list, they provide at least one activity that is defined as capable of responding to that intent.
+Typically the user will start from a particular activity and move through several others and end up creating a stack of activities all related to the original one they launched; this stack of activities is called a task. User could switch between tasks through back to the launcher screen.
+ii)  Services:
+Android services are akin to background processes or daemons in the unix world. A service is activated when another component requires its services and typically remains active for the duration required by its caller. Services can be made available to components outside an app, thereby exposing some of that app's core functionality to other apps.
+iii) Broadcast receivers:
+Broadcast receivers are akin to interrupt handlers. When a key event occurs, a broadcast receriver is triggered to handle that event on the app's behave. When not handling a specific event for which they are registered, broadcast receivers are otherwise inactive.
+iv)  Content providers:
+Content providers are essentially databases. Usually an app will include a content provider if it needs to make its data accessible to other apps. All content providers present the same API to apps, regardless of how they are actually implemented internally. Most content providers rely on the SQLite functionality included in Android, but they can also use files or other types of storage.
+
+• Intents:
+Intents are the late-binding mechanisms that allow components to interact. An app developer could send an intent for an activity to "view" a web page, for instance, even if the requesting app itself doesn't include the capabilities to do so.
+Think of intents as polymorphic Unix signals that don't necessarily have to be predefined or require a specific designated target component or app. The intent itself is a passive object, the effects of its dispatching will depend on its content, the mechanism used to dispatch it, the system's built-in rules, and the set of installed apps. An intent sent to a service, for example, can be received only by a service, not by an activity or a broadcast receiver.
+* Components can be declared as capable of dealing with given intent types using filters in manifest file. The system will thereafter match intents to that filter and trigger the corresponding component at runtime. This is called "implicit" intent. An intent can also be sent to a specific component in an "explicit" fashion, bypassing the need to declare that intent within the receiving component's filter.
+
+• Component lifecycle:
+In Android, user shouldn't have to manage task switching. Users are expected to start as many apps as he wants and "switch" among them by clicking Home to go to the home screen and clicking any other app. When a component is taken down to make room for a new one, and then the user returns to the original component, it should start up at the point where it was taken down and act as if it had been waiting in memory all along. User never needs to be aware of that components from previously used apps was destroyed to make way for new ones he started.
+To make this behavior possible, Android defines a standard lifecycle for each component type. An app developer must manage his components' lifecycle by implementing a series of callbacks for each component. These callbacks are then triggered by events related to the component lifecycle. See the state machine provide by Google to see the activity's lifecycle.
+
+• Manifest file:
+If there has to be a "main" entry point to an app, the manifest file is likely it. It informs the system of the app's components, the capabilities required to run the app, the minimum level of the API required, any hardware requirements, etc. Apart from broadcast receivers, which can be registered at runtime, all other components must be declared at build time in the manifest file.
+
+• Processes and threads:
+All components of an app are contained within a single Linux process. When there are too many processes running to allow for new ones to start, the linux kernel's out-of-memory (OOM) killing mechanism will kick in; at that point, android's in-kernel OOM handler will get called.
+
+• Remote procedure calls (RPCs):
+Android defines its own RPC/IPC mechanism: Binder. So communication across components is not typically done using the usual socket or System V IPC. Instead, components use the in-kernel Binder mechanism, accessible through /dev/binder.
+App developer do not use the binder mechanism directly, they must define and interact with interfaces using Android's Interface Definition Language (IDL). Interface definitions are usually stored in an .aidl file and are processed by the aidl tool to generate the proper stubs and marshaling/unmarshaling code required to transfer objects and data back and forth using the binder mechanism.
+
+• Framework introduction:
+i)   User interface:
+All UI objects in Android are built as descendents of the View class and are organized within a hierarchy of ViewGroups. An activity's UI can be specified either statically in XML or declared dynamicallt in Java. The UI can also be modified at runtime in Java if need be.
+ii)  Data storage:
+Android provides shared preferences, which allow developers to store key-value pairs either in a data set shared by all components in the app or within a specific separate file. These files may be stored privately by the app, so they are inaccessible to other apps, or they can be made readable/writable by other apps. App developers can also use the SQLite functionality included in Android to manage their own private databases. Such a database can then be made available to other apps by hosting it within a content provider component.
+iii) Security and permissions:
+Security in Android is enforced at the process level. Every app installed gets its own UID and GID. It is as if every app is a separate "user" in the system. Each app lives in its own separate sandbox. To exit the sandbox and access key system functionality, apps must use Android's permission mechanisms, which require developers to statically declare the permissions needed by an app in its manifest file.
+
+• Native development:
+NDk (Native Development Kit) can be combined with SDK and therefore have parts of your app in Java and parts of your app in C. It's crucial to understand that the NDK gives you access only to a very limited subset of the Android API. And APIs made available in NDK are mostly geared toward graphics rendering and sensor input retrival.
+
+
+2. Android's linux kernel:
+• Wakelocks:
+Since May 2012, equivalents to the wakelocks and their correlated early_suspend mechanisms have been merged into the mainline kernel. The early_suspend replacement is called autosleep; and the wakelock mechanism has been replaced by a new epoll() flag called EPOLLWAKEUP.
+Application and driver developers must explicitly grab wakelocks whenever they are undergoing critical operations or must wait for user input. App developers don't use wakelocks directly, they instead communicate Power Manager Service if they require explicit wake lock. Driver developers can directly call the added in-kernel wakelock primitives.
+The following LWN articles describe wakelocks in more details:
+* Wakelocks and the embedded problem.
+* From wakelocks to a real solution
+* Suspend block
+* Blocking suspend blockers
+* What comes after suspend blockers
+* An alternative to suspend blockers
+* KS2011: Patch review
+* Bringing Android closer to the mainline
+* Autosleep and wakelocks
+* 3.5 merge window part 2
+
+• Low-memory killer:
+Android's low-memory killer kicks in before the default kernel OOM killer. It attributes different OOM adjustment levels to different types of processes according to the components they are running and configures its own low-memory killer to apply different threasholds for each category of process.
+See LWN's article for more details: "Taming the OOM killer".
+
+• Android and the linux staging tree:
+Many android drivers are currently found in the drivers/staging/android directory. Staging tree is used to hold standalone drivers and filesystems that are not ready to be merged into the main portion of the Linux kernel tree at this point of time.
+
+• Binder:
+Binder is an RPC/IPC mechanism. It was eventually released as the OpenBinder project. The OpenBinder Documentation remains a must-read if you want to understand the mechanism's underpinnings and its design philosophy. App developers don't actually talk to the Binder directly; instead, they use the interfaces and stubs generated by the aidl tool.
+The in-kernel driver part of Binder mechanism is a character driver accessible through /dev/binder. It also allows one process to designate itself as the "Context Manager". (See ServiceManager)
+
+• Anonymous shared memory (ashmem):
+Ashmen is somewhat similar to POSIX SHM but with different behavior. For example it uses reference counting to destroy memory regions, and will shrink mapped regions if the system is in need of memory. "Unpinning" a region allows it to be shrunk, whereas "pinning" a region disallows the shrinking.
+Typically, a first process creates a shared memory region using ashmen, and uses Binder to shared the corresponding file descriptor with other processes. Dalvik's JIT code cache is provided to Dalvik instances through ashmen.
+
+• Alarm:
+Android's alarm driver is actually layered on top of the kernel's existing RTC and High-Resolution Timers (HRT) functionalities. Note that settimer() syscall uses kernel's HRT, so applications use HRT may have a problem because of suspend mode, all processes are freezed. However, kernel's RTC driver, which is accessible through /dev/rtc, enables users to use an ioctl() to set an alarm, which will work regardless of whether system is in suspend mode or not.
+Android's alarm driver combines the best of both worlds. So android alarm driver works well regardless of whether the system is suspended in the interim or not.
+From user-space, the alarm driver appears as /dev/alarm character driver and allows its user to set up alarms and adjust the system's wall time through ioctl() calls.
+
+• Logger:
+Android's logging functionality manages a handful of separate kernel-hosted buffers for logging data coming from user-space. No task-switches or file-writes are required for each event being logged. See "Embedded Android" P44 for more details about Android's logging framework. The logger driver is exposed to user-space through separate entries in /dev/log/. But user-space relies on liblog. There're 4 main buffers for logging: main, radio, system, and events. The main buffer's contents are shown if using logcat without any parameters.
+Both Log and EventLog classes are exposed to app developers, but Slog is for internal AOSP use only. Logging priority: verbose, debug, info, warn, error.
+
+• Other notable Androidisms:
+i) RAM console:
+Android adds a driver that registers a RAM-based console that survives reboots and makes its content accessible through /proc/last_kmsg. Its source code is in fs/pstore/ directory.
+ii) Physical memory (pmem):
+Like ashmen, the pmem driver allows for sharing memory between processes. But it allows the sharing of large chunks of physically contiguous memory regions, not virtual memory. Note that this driver is considered obsolete and has been dropped. It appears that the ION memory allocator is poised to replace whatever uses pmem had.
+
+• Hardware support:
+Android's subsystems and libraries don't rely on standard /dev entries to function properly; instead, Android typically relies on shared libraries provided by manufactures to interact with hardware. Android still ultimately relies on the kernel to access the hardware, however, this is done through shared libraries.
+Usually the system service will be split into two parts: i) one part in java that implements most of the Android-specific intelligence; ii) another part in C/C++ whose main job is interact with the HAL and other low-level functions.
+
+• Loading and interfacing methods:
+dlopen(): loading through HAL. Some hardware-supporting shared libraries are loaded by the libhardware library. It calls hw_get_module(), which in turn relies on the classic dlopen() to load libraries into the caller's address space.
+Linker-loaded .so files: Some system services are linked against a given .so file at build time.
+Hardcoded dlopen(): In a few cases the code invokes dlopen() directly instead of going through libhardware to fetch a hardware-enabling shared library.
+Sockets: Some system services or framework components use sockets to talk to remote daemon or service that actually interacts with the hardware.
+Sysfs entries: Used to control the behavior of hardware and/or kernel subsystems.
+/dev nodes: Any hardware abstraction must at some point communicate with an entry in /dev.
+D-bus: A classic messaging system found in most linux distributions for facilitating communication between various desktop components.
+
+• Native user-space:
+By "native user-space", it means that all the user-space components run outside the Dalvik virtual machine. It includes several binaries. They are not subject to any of the restrictions imposed on a typical Android app by the Android framework because they're running outside it.
+
+• Filesystem layout:
+/system is the main Android directory for storing immutable components generated by the build of AOSP. It's usually mounted read-only from a separate image from the root filesystem, which itself is mounted from a RAM disk image. 
+/data is Android's main directory for storing data and apps that change over time.
+
+• Init:
+The main configuration file for init is usually stored as /init.rc. But there's also a device-specific configuration file stored as  /init.<device_name>.rc.
+/system/build.prop contains build information. Use getprop and setprop to control runtime properties.
+The handling of udev hotplug events is done by the ueventd daemon. To know which entries to create in /dev, ueventd relies on the /ueventd.rc and /ueventd.<device_name>.rc files.
+
+• Dalvik and Android's Java:
+Dalvik is register-based, while the JVM is stack-based. For more details, see the paper "Virtual Machine Showdown: Stack Versus Registers".
+A feature of Dalvik must highlighting is that: it includes a Just-in-Time (JIT) compiler. Apps take longer to load the first time, but once they've been JITed, they load and run much faster. But JIT is available for a limited number of architectures only, namely ARM, x86, and MIPS.
+
+
+3. System services:
+
