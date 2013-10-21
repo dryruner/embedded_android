@@ -1,0 +1,45 @@
+• Note that repo's manifest file has nothing to do with manifest files used by app developers (AndroidManifest.xml).
+• repo init -u https://android.googlesource.com/platform/manifest.git -b gingerbread;
+(Fetch source of the version gingerbread)
+• $ repo help;
+See all the rrpo commands, some useful ones are: 
+$ repo braches
+$ repo overview; // Display overview of unmerged project branches.
+$ repo status; // Show the working tree status.
+$ repo smartsync; // Update working tree to the latest known good revision.
+Use $ repo help <cmd> for more information about the specific command cmd.
+
+• Inside the AOSP:
+Directory                            Content
+---------------------------------------------------------------------------
+abi                   Minimal C++ runtime type information support
+bionic                Android's custom C library
+bootable              OTA recovery mechanism and reference bootloader
+build                 Build system
+cts                   Comptability Test Suite
+dalvik                Dalvik VM
+development           Development Tools
+device                Device-specific files and components
+docs              
+external              External projects imported to AOSP
+frameworks            Core component such as system services
+gdk                   Unknown
+hardware              HAL and hardware support libraries
+libcore               Apache Harmony
+libnativehelper       Helper functions for use with JNI
+ndk                   Native development kit
+packages              Stock Android apps, providers, and IMEs
+pdk                   Platform Development Kit
+prebuilds             Prebuild binaries, including toolchains
+sdk                   Software Development Kit
+system                "Embedded Linux" platform that houses Android
+tools                 Various IDE tools
+
+• You could go through the contents in frameworks/base/core and system/core. A lot of interesting stuffs there.
+
+• $ ./build/envsetup.sh; $ lunch; After that you could use $ emulator &;
+You can use $ emulator -help; for more details.
+
+• In the device shell, cat /proc/cpuinfo; if you see Hardware: Goldfish, then it means you're running on the platform of emulator.
+
+• Some commercial phones and devices allow you to "unlock" the firmware, often use "fastboot oem unlock"; and therefore you can burn your own images with less risk of bricking your device. But the best configuration is something like BeagleBoard xM or a PandaBoard. They don't have a built-in flash chip that you may risk damaging. Instead, SoC on these devices boot straight from SD cards. Hence, fixing a broken image is simply a matter of unplugging SD card from the board, connecting it to the workstation, reprogramming it, and plugging it back into the board.
