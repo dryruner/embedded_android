@@ -3,6 +3,7 @@
 • Note that Android doesn't rely on makefiles called Makefile; instead, it's the Android.mk files that specify how the local module is built.
 • If you want to understand why Android's build system doesn't use recursive make, see the paper "Recursive Make Considered Harmful" for more details.
 
+
 2. Architectures:
 The entry point of the build system is build/core/main.mk. The build/core directory contains the bulk of the build system; and remember that Android's build system pulls everything into a single huge makefile, it isn't recursive.
 • Why does make hang: 
@@ -38,6 +39,7 @@ Build system defines a large number of functions in the file build/core/definiti
 These functions are not only used throughout the build system, but also they are directly used in modules' Android.mk files.
 See the source code of this file for more details.
 
+
 3. Main make recipes:
 Look at build/core/Makefile. This makefile takes important place and generates a lot of imprtant images/components:
 * Properties: including the target's /default.prop and /system/build.prop.
@@ -69,6 +71,26 @@ out/ is mainly separated into two directories: host/ and target/. The directory 
 * system/: The target's /system directory.
 When the kernel boots, it will mount RAM disk and execute the /init binary found inside. That binary will in turn run the /init.rc script that will mount both the /system and /data images.
 
-4. Build receipes:
 
+4. Build receipes:
+$ make; // This is equivalent to: $ make droid;
+$ make showcommands; // "showcommands" like gcc lines everything it does.
+$ make sdk; // Building your own sdk, after compilition sdk exists in /out/host/<PC_platform>/sdk/
+$ make win_sdk; // Building SDK for windows.
+$ make cts; // Building the CTS. Note that for building CTS, you don't need to use envsetup.sh or lunch!
+
+• Building the NDK:
+NDK also has its own build system:
+$ cd mdk/build/tools;
+$ export ANDROID_NDK_ROOT=aosp-root/ndk
+$ ./make-release; // see ./make-release --help
+
+• Building a single module:
+$ make Launcher2 snod; // Add the snod target to force the build system to regenerate the system image to include your updated module.
+
+$ make update-api; // Updating the API
+* Building out of tree and building recursively in tree, see "Embedded Android" P140~143 for more details.
+
+
+5. Basic AOSP hacks:
 
