@@ -31,3 +31,44 @@ This script defines several useful commands:
 * $ m; // Make from the top tree of the project, regardless of wherever you are right now.
 * $ mm; // Build all the modules in the current directory. Note that mm doesn't rebuild the entire tree and therefore won't regenerate AOSP images even if a dependent module has changed. (m will do that, though.) Still mm is useful to test whether your local changes break the build or not.
 & $ mmm ... ; // Build all the modules in the supplied directory.
+
+• vendor/*/vendorsetup.sh; vendor/*/*/vendorsetup.sh; device/*/*/vendorsetup.sh
+• Function definitions:
+Build system defines a large number of functions in the file build/core/definitions.mk, including file lookup (e.g., all-makefiles-under, all-c-files-under), transformation (e.g., transform-c-to-o, transfrom-java-to-classes.jar), copying (e.g., copy-file-to-target), and utility (e.g., my-dir).
+These functions are not only used throughout the build system, but also they are directly used in modules' Android.mk files.
+See the source code of this file for more details.
+
+3. Main make recipes:
+Look at build/core/Makefile. This makefile takes important place and generates a lot of imprtant images/components:
+* Properties: including the target's /default.prop and /system/build.prop.
+* RAM disk
+* Boot image (ramdisk + kernel image)
+* NOTICE files
+* OTA keystore
+* Recovery image
+* System image (the target's /system directory)
+* Data partition image (the target's /data directory)
+* OTA update package
+* SDk
+
+• Note that some things are not in this makefile:
+Kernel images: instead, find an Androidized kernel on your own, build it separately from the AOSP and feed it to the AOSP.
+NDK: NDK's build system is entirely separate from the AOSP's build system. NDK's build system is in ndk/build/.
+CTS: The rules for building the CTS are in build/core/tasks/ctk.mk.
+
+• Module build templates:
+See "Embedded Android" P128~129 for more details.
+Note that CLEAR_VARS, which is provided by clear_vars.mk, is very important. Including CLEAR_VARS ensures that the LOCAL_* values set for modules preceding yours are zeroed out by the time your Android.mk is included. Also a single Android.mk can describe multiple modules one after the other. Hence CLEAR_VARS ensures that previous module recipes don't pollute subsequent ones.
+THe build/core/build-system.html file contains an early version of the meaning of LOCAL_* variables. See it and P131~132 for more details about LOCAL_* variables. Also clear_vars.mk contains the full list of variables that are cleared.
+
+• Output:
+out/ is mainly separated into two directories: host/ and target/. The directory you'll be most interested in is out/target/product/<PRODUCT_DEVICE>/, where the output images will be located. Some interesting files in this directory are:
+* installed-files.txt: A list of all the files installed in data/ and system/ directories.
+* ramdisk.img: The RAM disk image generated based on the content of the root/ directory.
+* root/: The contents of the target's root filesystem.
+* system/: The target's /system directory.
+When the kernel boots, it will mount RAM disk and execute the /init binary found inside. That binary will in turn run the /init.rc script that will mount both the /system and /data images.
+
+4. Build receipes:
+
+
