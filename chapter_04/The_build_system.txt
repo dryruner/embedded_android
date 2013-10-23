@@ -1,0 +1,33 @@
+1. Comparison with other build systems:
+• Unlike most make-based build systems, the Android build system doesn't rely on recursive makefiles. Unlike linux kernel, for example, there isn't a top-level makefile that will recursively invoke subdirectories' makefiles. Instead, there's a script that explores all directories and subdirectories until it finds an Android.mk file, then it stops and doesn't explore the subdirectories underneath that file's location - unless that Android.mk instructs the build system otherwise.
+• Note that Android doesn't rely on makefiles called Makefile; instead, it's the Android.mk files that specify how the local module is built.
+• If you want to understand why Android's build system doesn't use recursive make, see the paper "Recursive Make Considered Harmful" for more details.
+
+2. Architectures:
+The entry point of the build system is build/core/main.mk. The build/core directory contains the bulk of the build system; and remember that Android's build system pulls everything into a single huge makefile, it isn't recursive.
+• Why does make hang: 
+What it is doing is incorporating every Android.mk file it can find in the AOSP. If you want to see this in action, edit build/core/main.mk and replace this line:
+	include $(subdir_makefiles)
+with this:
+	$(foreach subdir_makefile, %(subdir_makefiles), \
+			$(info Including $(subdir_makefile)) \
+			$(eval include $(subdir_makefile)) \
+	)
+	subdir_makefile := 
+The next time you type make, you'll actually see what's happening.
+• Product description: - AndroidProducts.mk; - Single Product .mk;
+Board description: - BoardConfig.mk;
+Core(main.mk) - Configuration (config.mk); - Definitions (definitions.mk); - Main rules (Makefile); - Clean rules (cleanbuild.mk).
+• Configuration of the CPU-specific options used to build Android: 
+For ARM, those are contained in build/core/combo/arch/arm/armv*.mk, with TARGET_ARCH_VARIANT determining the actual file to use.
+
+• envsetup.sh:
+This script defines several useful commands:
+* $ croot; // Changes directory to the top of project tree, wherever you are right now.
+* $ godir <filename>; // Jumps to the directory contains the specified file.
+* $ cgrep ... ; // Greps on all local C/C++ files.
+* $ jgrep ... ; // Greps on all local Java files.
+* $ resgrep ... ; // Greps on all local res/*.xml files.
+* $ m; // Make from the top tree of the project, regardless of wherever you are right now.
+* $ mm; // Build all the modules in the current directory. Note that mm doesn't rebuild the entire tree and therefore won't regenerate AOSP images even if a dependent module has changed. (m will do that, though.) Still mm is useful to test whether your local changes break the build or not.
+& $ mmm ... ; // Build all the modules in the supplied directory.
