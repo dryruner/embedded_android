@@ -1,0 +1,10 @@
+• Android should run on any hardware that runs Linux.
+• An SoC comprises a CPU and a bunch of peripheral controllers all on the same integrated circuit. Note that not all components within an SoC operate at the same clock speed. For instance GPU is often operating at several hundred megahertz.
+
+• The Baseband Processor (BP):
+The majority of handsets on the market have separate processing units for running the user-facing software and managing the radio functions. They are typically known as application processor (AP) and baseband processor (BP).
+BP has its own flash and RAM. This guarantees the certified software running on the BP is isolated from the software running on the AP, and that the RTOS running on BP is focused on running a single thing - the radio's operation.
+
+• Note that while it implicitly nenefits from Linux's multicore capabilities, the Android stack itself doesn't, at the time being, contain any specific multicore optimizations. Hence, if you have code that must run on multiple CPUs simultaneously, you'll need to manually make sure each thread has its CPU affinity properly set.
+
+• "Building Embedded Linux System, 2nd edition"
