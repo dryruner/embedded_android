@@ -3,3 +3,4 @@
 * Chapter 03: AOSP Jump-Start
 * Chapter 04: The Build System
 * Chapter 05: Hardware Primer
+* Chapter 06: Native User Space
