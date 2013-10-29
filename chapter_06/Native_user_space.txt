@@ -48,11 +48,89 @@ ADB can also interact with the emulator's console. See the port number on the up
   (bugreport uses the dumpstate, actually. The difference is that: dumpstate needs to run as root; while bugreport has no such restriction. Essentially, bugreport causes init to start dumpstate in a mode where it opens a Unix domain socket and listens for connections for dumping its output. bugreport then connects to that socket and copies the content it reads to its own stdout, which is then proxied through adb to your host's shell. So it can bypass the root access.)
 * adb -d forward <local> <remote>; e.g. $ adb forward tcp:8080 tcp:80; (If device is running a web server, you can browse the device on host's web browser through localhost:8080). $ adb forward tcp:8000 dev:/dev/ttyUSB0; (In this case, any read/write operations conducted on port 8000 will result in read/write operations on the remote /dev/ttyUSB0.)
 adb forward's connection types:
-tcp:<port> - Regular TCP port.
-localfilesystem:<unix domain socket> - A regular Unix domain socket.
-localabstract:<unix domain socket> -  Like a Unix domain socket, but it's a Linux-specific extension.
-localreserved:<unix domain socket> - Android's "reserved" Unix domain sockets. They're all in /dev/socket.
-dev:<char device name> - Actual devices on the target.
-jdwp:<pid> - Used to specify the PID of a Dalvik process for debugging purposes.
+	tcp:<port> - Regular TCP port.
+	localfilesystem:<unix domain socket> - A regular Unix domain socket.
+	localabstract:<unix domain socket> -  Like a Unix domain socket, but it's a Linux-specific extension.
+	localreserved:<unix domain socket> - Android's "reserved" Unix domain sockets. They're all in /dev/socket.
+	dev:<char device name> - Actual devices on the target.
+	jdwp:<pid> - Used to specify the PID of a Dalvik process for debugging purposes.
 
 * Dalvik debugging:
+Dalvik implements the Java Debug Wire Protocol (JDWP), thereby allowing you to use the regular jdb to debug your apps. So you could use forward feature to debug the apps on the host:
+	$ adb forward localhost:8000 jdwp:376
+	$ jdb -attach localhost:8000
+To know which PID are debuggable through JDWP, use:
+	$ adb jdwp
+Note that all of this requires that adbd be running on the target before any Dalvik app is started. Only those Dalvik apps that you start after adbd will be debuggable.
+
+* adb sync:
+Updating the entirety /data and /system partition. It will automatically find the files to sync if ANDROID_PRODUCT_OUT is set. Otherwise, you'll need to manually point it to the right output directory like (Using -p [path]):
+	$ adb -d -p ~/bilbo/out/target/product/soho/ sync
+You could also sync just the /system or /data partition, not both:
+	$ adb -d data
+
+* adb install:
+	$ adb install [-l] [-r] [-s] <file>
+	$ adb uninstall [-k] <package>
+-l: Tells to ensure that the app is forward-locked. In other words, it disallows the user from copying the .apk off the device. (The app is installed in /data/app-private/ instead of /data/app/.)
+-r: TO re-install the app, preserving its data as it is.
+-s: To install the app on external storage (the SD card instead of internal storage)
+-k: Tells uninstall to keep the app's data although the .apk is removed.
+
+* adb reboot:
+	$ adb reboot
+	$ adb reboot bootloader // reboot into bootloader
+	$ adb reboot recovery  // reboot into recovery mode
+Note that all these reboot commands result into an immediate reboot. There's no graceful shutdown of any process or system services.
+
+* Switching connection type:
+adbd could also listens on TCP/IP instead of using USB.
+	$ adb tcpip <port>; // restarting adbd in TCP mode on port. Essentially it will set the service.adb.tcp.port to <port> and restart the adbd daemon.
+After that you could connect to it like:
+	$ adb connect <ip> <port>
+To switch it back to use USB, type:
+	$ adb -s <ip>:<port> usb; // restarting adbd in USB mode
+
+* Controlling the emulator:
+You can connect to each emulator's console using telnet:
+	$ telnet localhost <port>;
+	$ help (in telnet's console)
+
+* Tunneling PPP:
+You can ask adb to set up a PPP connection between the host and the target. This might be for tethering or simply to create a network connection between the host and target when you have only a USB connection between the both. 
+	$ adb ppp <adb service name> [ppp opts]
+See "Embedded Android" P208 for more details about how to use ppp.
+Also see: 
+	pppd's man page
+	ppp over adb
+	device shows up in lsusb + adb but not in ifconfig
+	USB tether for Xperia X10 Mini Pro
+	creates a ppp link between my Ubuntu development machine and BeagleBoard running Android connected via USB.
+
+
+3. Android's command line:
+Source code is in system/core/sh/.
+Toolbox's source code is in system/core/toolbox/.
+Toolbox's common commands:
+	hd: dump a file in hexadecimal format.
+	id: print the current user and group IDs.
+	ionice: Get/set the I/O priority of a process.
+	lsmod: List the currently loaded kernel modules
+	lsof: List the currently open file descriptors.
+	netcfg: Network configuration.
+	netstat: Print network statistics.
+	printenv: Print all environment variables exported.
+	renice: Change a process's nice value.
+	route: Print/modify the kernel's routing table.
+
+• Global properties:
+	getprop <key>
+	setprop <key> <value>
+	watchprops
+* Once a property has been set, you can change its value using setprop. You can't, however, delete a property that you created using setprop. The property will disappear at the next reboot unless its name starts with "persist.". In that case, a file with the property's full name will be created in /data/property/ containing the property's value. To delete a persist property, you need to delete this file in /data/property/ or destroy the /data partition.
+
+* You can also monitor properties being changed in real-time:
+	$ watchprops
+
+• Input events:
+
