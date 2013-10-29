@@ -113,9 +113,9 @@ PRODUCT_MODEL: ro.product.model field.
 
 • You also need to provide a Android.mk inorder to build all the modules that you might have included in this device's directory, for example:
 	LOCAL_PATH := $(call my-dir)
-    	include $(CLEAR_VARS)
-    	ifneq ($(filter coyotepad, $(TARGET_DEVICE)),)
-    	include $(call all-makefiles-under, $(LOCAL_PATH))
+   	include $(CLEAR_VARS)
+   	ifneq ($(filter coyotepad, $(TARGET_DEVICE)),)
+   		include $(call all-makefiles-under, $(LOCAL_PATH))
 	endif
 If you have several products sharing the same set of packages, you may want to create a device/acme/common/ directory containing the shared packages.
 • Lastly, you should make the device just added in visible to envsetup.sh and lunch. To do so, you need to add a vendorsetup.sh in device/acme/coyotepad/:
@@ -127,11 +127,11 @@ If you have several products sharing the same set of packages, you may want to c
 Copy the whole app file into: device/acme/coyotepad/, for example: $ cp -r ~/HelloWorld device/acme/coyotepad/;
 Then you need to create an Android.mk in aosp-root/device/acme/coyotepad/HelloWorld/ to build the app:
 	LOCAL_PATH := $(call my-dir)
-    	include $(CLEAR_VARS)
-    	
-    	LOCAL_MODULE_TAGS := optional
+    include $(CLEAR_VARS)
+
+   	LOCAL_MODULE_TAGS := optional
 	LOCAL_SRC_FILEs := $(call all-java-files-under, src)
-    	LOCAL_PACKAGE_NAME := HelloWorld
+   	LOCAL_PACKAGE_NAME := HelloWorld
 
 	include $(BUILD_PACKAGE)
 * Note that this module is tagged as optional, it won't be included by default in the AOSP build. To include it, you'll need to add it to the PRODUCT_PACKAGES listed in the full_coyotepad.mk.
@@ -149,8 +149,8 @@ See "Embedded Android" P150 for the detailed example. You can replace most resou
 • Adding a native tool or daemon:
 Like adding an app, you also need an Android.mk in the native tool's directory:
 	LOCAL_PATH := $(call my-dir)
-    	include $(CLEAR_VARS)
-    	LOCAL_MODULE := hello-world
+    include $(CLEAR_VARS)
+    LOCAL_MODULE := hello-world
 	LOCAL_MODULE_TAGS := optional
 	LOCAL_SRC_FILES := hello-world.cpp
 	LOCAL_SHARED_LIBRARIES := liblog
@@ -161,12 +161,12 @@ Global addition of native tools and daemons is also possible, see adding an over
 • Adding a native library:
 Like apps and binaries, you can also add native libraries for your board. The Android.mk you need is as follows:
 	LOCAL_PATH := $(call my-dir)
-    	include $(CLEAR_VARS)
-    	LOCAL_MODULE := libmylib
+    include $(CLEAR_VARS)
+    LOCAL_MODULE := libmylib
 	LOCAL_MODULE_TAGS := optional
 	LOCAL_PRELINK_MODULE := false
 	LOCAL_SRC_FILES := $(call all-c-files-under, .)
-    	include $(BUILD_SHARED_LIBRARY)
+    include $(BUILD_SHARED_LIBRARY)
 To use this library, you must add it to the libraries listed by the Android.mk file of whichever binaries depend on it:
 	LOCAL_SHARED_LIBRIES := libmylib
 You'll also likely need to add relevant headers to an include/ directory located in about the same location as you put the library, such as device/acme/coyotepad/include/.
