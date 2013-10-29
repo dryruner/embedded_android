@@ -1,0 +1,33 @@
+1. Filesystem:
+RAM disk filesystem (root file system /) is mounted as read-only. /cache, /data, and /system are typically mounted from separate partitions on actual storage media. Usually /cache and /data are mounted as read-write, while /system is mounted as read-only.
+• Using a single filesystem:
+There's nothing preventing you from using a single filesystem for all of Android's build output instead of using separate storage partitions. By using a single filesystem, you're assuming that you can update the entirety of the filesystem in one fell swoop. In sum, it'll be very difficult to create a fail-safe update procedure for your system.
+* The SD card always appears as a block device and typically has a VFAT filesystem on it.
+* The root directory:
+See "Embedded Android" P179~180 for more details of every entry under /.
+
+* /system:
+/system/app: All modules built with BUILD_PACKAGE are here.
+/system/bin: All modules built with BUILD_EXECUTABLE are here.
+/system/framework: *.jar files. All modules built with BUILD_JAVA_LIBRARY are here.
+/system/lib: The system's native libraries. All modules built with BUILD_SHARED_LIBRARY are here.
+/system/build.prop: A set of properties generated during the build process of AOSP. They are loaded by init at startup.
+(BUILD_PREBUILT: No default output location. Make sure you explicitly specify either LOCAL_MODULE_CLASS or LOCAL_MODULE_PATH.
+ BUILD_KEY_CHAR_MAP: Output location is in /system/usr/keychars.
+ )
+
+* /data:
+/data/app: Default install location for apps.
+/data/app-private: Install location for apps with forward locking. (Developer can set the Copy Protection in the Publishing Options to On or Off. By setting it Off, the app's .apk can be copied off the device, while it can't if set to On. So On means the app is installed in /data/app-private/, and Off means it's installed in /data/app/.)
+/data/property: Persistent system properties.
+/data/tombstones: Whenever a native binary crashes, a file whose name is tombstone_seqnum is created here with information about the crash.
+
+* Explicitly copying files:
+In the case of some files, you don't need the build system to build them in any manner; you just need to copy the files into the filesystem. That's the purpose of the PRODUCT_COPY_FILES macro that you can use in the product's .mk. See "Embedded Android" P187.
+
+* Default rights and ownership:
+See system/core/include/private/android_filesystem_config.h. Every app is installed as a separate user. See "Embedded Android" P187 ~ P190 for more details.
+
+
+2. adb:
+
