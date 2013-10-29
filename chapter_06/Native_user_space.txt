@@ -30,4 +30,29 @@ See system/core/include/private/android_filesystem_config.h. Every app is instal
 
 
 2. adb:
+Source code is in system/core/adb/. ADB server: on the host side. ADB daemon: on the device side.
+To provide services, adb server opens socket 5037 on the host and listens for connections. Anyone can connect to the server as long as he respects the protocol. See OVERVIEW>TXT and SERVICES.TXT in system/core/adb/ if you'd like to implement code that talks directly to the adb server.
+ADB can also interact with the emulator's console. See the port number on the upper-left corner of the emulator window. You could connect to the port number using telnet.
+* Main flags and environment variables:
+-d: Ensure that the command is executed on the device, not the emulator. Note that if more than 1 device is connected, it will return error.
+-e: Ensure that the command is executed on the emulator.
+-p <product_name or path>: Sometimes if ANDROID_PRODUCT_OUT is not set, you must use -p to indicate the path to the product's output directory within an AOSP source tree. (For example: $ adb -p XXX sync)
 
+* adb connect <host>[:<port>]: Connect to a remote device whose adbd daemon is running on TCP/IP instead of USB. (5555 being the default port)
+* adb disconnect <host>[:<port>]
+* adb -d get-state
+* adb -d get-serialno
+* adb wait-for-device
+* adb -d status-window
+* adb -d bugreport; == adb -d shell dumpstate;
+  (bugreport uses the dumpstate, actually. The difference is that: dumpstate needs to run as root; while bugreport has no such restriction. Essentially, bugreport causes init to start dumpstate in a mode where it opens a Unix domain socket and listens for connections for dumping its output. bugreport then connects to that socket and copies the content it reads to its own stdout, which is then proxied through adb to your host's shell. So it can bypass the root access.)
+* adb -d forward <local> <remote>; e.g. $ adb forward tcp:8080 tcp:80; (If device is running a web server, you can browse the device on host's web browser through localhost:8080). $ adb forward tcp:8000 dev:/dev/ttyUSB0; (In this case, any read/write operations conducted on port 8000 will result in read/write operations on the remote /dev/ttyUSB0.)
+adb forward's connection types:
+tcp:<port> - Regular TCP port.
+localfilesystem:<unix domain socket> - A regular Unix domain socket.
+localabstract:<unix domain socket> -  Like a Unix domain socket, but it's a Linux-specific extension.
+localreserved:<unix domain socket> - Android's "reserved" Unix domain sockets. They're all in /dev/socket.
+dev:<char device name> - Actual devices on the target.
+jdwp:<pid> - Used to specify the PID of a Dalvik process for debugging purposes.
+
+* Dalvik debugging:
