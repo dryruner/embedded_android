@@ -133,4 +133,34 @@ Toolbox's common commands:
 	$ watchprops
 
 • Input events:
+The devices that expose Linux's input layer are available through entries in /dev/input/. While Android's system server already handles those events appropriately, you might want to either observe or generate your own events:
+	$ getevent [-t] [-n] [-s <switchmask>] [-S] [-v <mask>] [-p] [-q] [-c <count>] [-r] [<device>]
+	-t: show timestamps
+	-n: don't print newlines
+	-s: print switch states for given bits
+	-S: print all switch states
+	-v: verbose mask (errs=1, dev=2, name=4, info=8, vers=16, pos.events=32)
+	-p: show possible events (errs, dev, name, info, pos.events)
+	-q: quiet (clear verbose mask)
+	-c: print given number of events then exit
+	-r: print rate events are reveived
+
+	$ sendevent <device> <type> <code> <value>; // e.g.: $ sendevent /dev/input/event0 1 330 1;
+Note that getevent's output is hexadecimal, while sendevent's input is decimal.
+
+• Controlling services:
+	start <servicename>
+	stop <servicename>
+There's no way to ask Android for the list of running services. ($ service list could list system services, but not the customed services.)
+	$ stop zygote; // This will stop all apps and kill the system server.
+
+• Logging:
+It allows you to add your own logs to Android's logger:
+	$ log [-p <prioritychar>] [-t <tag>] <message>;
+	-prioritychar: v,d,i,w,e
+	e.g.:
+	$ log -p i -t HEHE "nima"; // then run logcat, you'll see I/HEHE (...): nima
+This can be useful if you have scripts to test/debug.
+
+• ioctl:
 
