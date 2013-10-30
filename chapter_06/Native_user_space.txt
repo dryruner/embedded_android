@@ -163,4 +163,83 @@ It allows you to add your own logs to Android's logger:
 This can be useful if you have scripts to test/debug.
 
 • ioctl:
+	$ ioctl [-l <length>] [-a <argsize>] [-rdh] <device> <ioctlnr>
+	-l <length>: length of io buffer
+	-a <argsize>: size of each argument (1-8)
+	-r: open device in read-only mode
+	-d: direct argument (no iobuffer)
+	-h: print help
+
+• Wiping the device:
+Sometimes it's necessary to destroy data on an Android device:
+	$ wipe <system|data|all>
+
+• Other Android-specific commands:
+* nandread: Reading the contents of a NAND flash device to a file.
+* newfs_msdos: Allowing you to format a device as a VFAT filesystem.
+* notify: This command uses the inotify syscall to monitor directories or files for modification.
+* r: This command just repeats the previous command you typed on the shell.
+* schedtop: Like top, schedtop is for continuous real-time monitoring of the kernel's scheduler. 
+* setconsole: This command lets you switch consoles.
+
+• logcat:
+	$ logcat [options] [filterspecs];
+	options:
+		-s: set default filter to silent. Like specifying filterspec "*:s"
+		-f <filename>: Log to file, default to stdout.
+		-r [<kbytes>]: Rotate log every kbytes (16 if unspecified). Requires -f.
+		-n <count>: Set max number of rotated logs to <count>, default to 4.
+		-v <format>: Set the log print format, where <format> is one of: brief, process, tag, thread, raw, time, threadtime, long.
+		-c: clear the entire log and exit.
+		-d: dump the log and then exit. (don't block)
+		-t <count>: print only the most recent <count> lines. (implies -d)
+		-g: get the size of the log's ring buffer and exit.
+		-b <buffer>: request alternate ring buffer (main (default), radio, events)
+		-B: output the log in binary.
+	filterspecs:
+		<tag>[:priority]
+		-tag: A log component tag ('*' for all)
+		-priority: V (verbose), D (debug), I (info), W (warn), E (error), F (fatal), S (silent, supress all output)
+	Note that for filterspecs: '*' == '*:d'; and 'tag' == 'tag:v'. If not specified on the command line, filterspec is set from ANDROID_LOG_TAGS. If no filterspec is found, filter defaults to '*:I'. If not specified with -v, format is set from ANDROID_PRINTF_LOG or defaults to 'brief'.
+* For example: $ logcat ActivityManager:I Myapp:D *:s; // Supressing all logs except those with the tag "ActivityManager" at priority 'I' and above, and all log messages with tag "Myapp" with priority 'D' and above.
+
+• debuggerd:
+This daemon is started by init early during startup. It opens the android:debuggerd abstract Unix domain socket and awaits connections. It remains dormant until a user-space process crashes. debuggerd then does two things: create a tombstone file in /data/tombstones/, and if required, allows debugging to be done through gdbserver.
+* Also, if you set the debug.db.uid to some UID larger than that of the crashing process (just set a large integer value such as 2^31-1), debuggerd will then use the ptrace() syscall to attach to the dying process and allow you to start gdbserver to take control of it. Once gdbserver is attached to the dying process, you can then use one of the arm-eabigdb debuggers that are part of the AOSP's prebuilt/ directory to attach to the gdbserver running on the target.
+
+• logwrapper:
+This command allows you to run another command and redirect its stdout and stderr to the Android logger:
+	$ logwrapper [-x] <binary> [<args> ...]
+Using -x causes logwrapper to generate a segmentation fault (SIGSEGV) when binary terminates.
+
+• run-as:
+Allows you to run a binary as if it were executed with the rights associated with an app package:
+	$ run-as <package-name> <command> [<args>]
+The command will run from the directory associated with package-name in /data/app/ with that app's UID/GID.
+
+• sdcard utility:
+This utility uses Linux's FUSE to emulate in any directory on the filesystem the rights and permissions you'd find on any FAT-formatted SD card:
+	$ sdcard <path> <uid> <gid>
+The directory provided as path will be mounted to /mnt/sdcard/. And while sdcard must be issued as root, it'll run as /uid/gid. This is useful for devices that don'y actually have a removable SD card. The "external" storage is emulated on the "internal" storage using the sdcard command.
+
+• Extra native utilities and daemons:
+nc: netcat
+sqlite3: SQLite
+strace
+tcpdump
+oprofiled
+cpueater: A while(1) loop, eating as much CPU as possible.
+daemonize: Allows you to run it as a daemon in the background.
+crasher: Packaged with debuggerd and essentially simulates a crashing process.
+latencytop: Provides per-process latency information.
+librank: Prints memory usage information for each object mapped into any process's memory.
+procmem: Prints memory usage information for each section of a running PID.
+procrank: Ranks processes by memory used.
+schedtest: Tests the scheduler to see how reliable it is at promptly waking up tasks that request 1ms sleeps.
+showmap: Prints out a process's memory map.
+showslab: Prints out information on the slab allocator.
+timeinfo: Reports realtime, uptime, awake percentage, and sleep percentage to the standard output.
+
+
+4. Init:
 
