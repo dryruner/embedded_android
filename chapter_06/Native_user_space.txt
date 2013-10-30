@@ -242,4 +242,144 @@ timeinfo: Reports realtime, uptime, awake percentage, and sleep percentage to th
 
 
 4. Init:
+Source code in system/core/init/.
+• After getting started by the kernel, it essentially reads its configuration files, prints out a bootlogo or text to the screen, opens a socket for its property service, and starts all the daemons and services that bring up the entire Android user-space.
+One of the first thing init does is check whether it was invoked as ueventd. The next thing init does is create and mount /dev, /proc, and /sys. Then it readss the init.rc and init.<device_name>.rc files and parses their content into its internal structures. Once all initialization is done, init then enters an infinite loop in which it restarts any services that might have exited and that need restarting. Then it polls file descriptors it handles, such as property service socket, for any input that needs to be processed, (This is how setprop property setting requests are serviced, for instance.)
+• Configuration files:
+One thing very important is that: init reads both .rc files before it executes any of the instructions.
+• Semantics:
+.rc files contain a series of declarations that fall in one of two types: actions and services. ('on' for an action, 'service' for a service.)
+	on <trigger>
+		<command>
+		<command>
+		...
+	
+	service <name> <pathname> [<argument>]*
+		<option>
+		<option>
+		...
+* Note: init's "services" have nothing to do with system services or the service component used by app developers.
+Only an action results in the execution of commands; service declarations, however, serve only to describe services, they don't actually start anything. The services are typically started or stopped when an action is triggered.
+* Two types of action triggers: predefined triggers and triggers activated on property-value changes.
+i)  Predefined triggers:
+early-init
+init
+early-fs
+fs
+post-fs
+early-boot
+boot
+See "Embedded Android" P232 for more details of the sequence. After boot, run all property-triggered commands:
+ii) Property-based triggers:
+	on property:<name>=<value>
+This allows you to run a set of commands when the property called name is set to value.
+init's action commands:
+	chdir <dir>
+	chmod <octal-mode> <path>
+	chown <owner> <group> <path>
+	chroot <dir>: Set process's root directory
+	class_start <serviceclass>: Starts all services that belong to serviceclass.
+	class_stop <serviceclass>: Stop all services that belong to serviceclass, and disables them.
+	class_reset <serviceclass>: Like class_stop but doesn't disable the services.
+	copy <path> <dest>
+	domainname <name>: Set's the system's domain name.
+	exec <path> [argument]*: Forks and executes a program. This operation is blocking.
+	export <name> <value>: Set environment variable.
+	ifup <interface>: Start interface up.
+	import <filename>: Import an additional init config file to one currently parsed.
+	insmod <path>
+	hostname <name>: Set the system's hostname.
+	load_persist_props: Load persistent properties.
+	loglevel <level>: Set the current log level.
+	mkdir <path> [mode] [owner] [group]
+	mount <type> <device> <dir> [mountoption]*: Mount device to dir.
+	mount_all <path>: Mount all partitions based on the information found in the file path.
+	restart <service>
+	restorecon <path>: Restore SELinux context.
+	rm <path>
+	rmdir <path>
+	setkey <table> <index> <value>: Set a keyboard entry value.
+	setrlimit <resource> <cur> <max>: Set the resource's rlimit.
+	setcon <string>: Set security context (SELinux).
+	setenforce <value>: Enable or disable security enforcement (SELiux).
+	setsebool: Set SELinux boolean.
+	symlink <target> <path>
+	sysclktz <mins_west_of_gmt>: Set timezone.
+	trigger <event>: Start action called event.
+	wait <path>: Wait until a file appears in the filesystem.
+	write <path> <string> [<string>]*: Open a file and write strings to it.
+Note that init will not attempt to issue commands to the command line, commands that aren't recognized are simply ignored.
 
+* Service declarations:
+	service <name> <pathname> [<argument>]*
+What's important to highlight here is that once this line is parsed, the service will be known by init as name. The actual name of the binary that is pointed to by pathname will itself not be recognized. See the example:
+	service zygote /system/bin/app_process -Xzygote /system/bin/ --zygote --start-system-server
+* Service options:
+	class <name>: This service belongs to the class called name. The default class is default.
+	console: Service requires and runs on console.
+	critical: If this service crashes 5 times, reboot into recovery mode.
+	disabled: Don't automatically start this service. It'll need to be manually started using start.
+	group <groupname> [<groupname>]*: Run this service under the given group(s).
+	ioprio <rt|be|idle> <ioprio 0-7>: Set the service's I/O scheduler and priority.
+	keycodes <keycode> [<keycode>]*: Start the service whenever the given keycode(s) are activated.
+	oneshot: Service runs only once. Service is set as disabled on exit.
+	onrestart <command>: If the service restarts, run command.
+	seclabel <string>: Set the service's SELinux label.
+	setenv <name> <value>: Set the name environment variables before starting this service.
+	socket <name> <type> <perm> [<user>] [<group>]: Creates a Unix domain socket and pass its file descriptor to the process as it starts.
+	user <username>: Runs this service as username.
+* What about init.<device_name>.sh?
+Despite the name of the file, init itself doesn't recognize such scripts and has no code that looks for them. But board-specific .rc files cab be made to run shell scripts like they'd run any other service. For example:
+	service goldfish-setup /system/etc/init.goldfish.sh
+		oneshot
+See more examples in init.rc, init.qcom.rc.
+
+• Global properties:
+There're two ways that property service is exposed to the rest of the system: 
+i)  /dev/socket/property_service (a Unix domain socket that processes can open to talk to the property service and have it set and/or change the value of global properties.)
+ii) /dev/__properties__ (An "invisible" file, i.e. you won't see it in /dev if you look for it. It is memory-mapped into the address space of all services started by init. It is through this mapped region that descendants of init can read global properties.).
+* /dev/__properties__'s invisibility:
+You won't find /dev/__properties__ in the filesystem because of the way init handles the file:
+i)   Creates /dev/__properties__ in read-write mode.
+ii)  Sets its size to a desired global properties workspace size.
+iii) Memory-maps the file into init's address space.
+iv)  Closes the file descriptor.
+v)   Opens the file as read-only.
+vi)  Deletes the file from the filesystem.
+By deleting the file at last step, no one could see the file. However, since the file was memory-mapped when it was still open in read-write mode, init's property service is able to continue writing to the memory-mapped file. Also, since it was opened in read-only mode before it was deleted, init also has a file descriptor it can pass to its children. So they can in turn memory-map the file, which will remain read-only for them.
+* See system/core/init/property_service.c. You can also interact with the property service from within the code you build as part of the AOSP: see frameworks/base/core/java/android/os/SystemProperties.java. To use this class, you would need to import android.os.SystemProperties. If you're using C, have a look at system/core/include/cutils/properties.h, you may need to include <cutils/properties.h>.
+
+ro.*: Properties start with this prefix are meant to be read-only. So they can be set only once in system's lifetime.
+persist.*: Properties start with this prefix are committed to persistent storage each time they're set.
+ctl.*: There's a ctl.start and ctl.stop. When the property service receives a request to set either of these, it starts/stops the service whose name is provided as the value for the property. For example:
+	$ setprop ctl.start bootanim
+	$ setprop ctl.stop bootanim
+	property_set("ctl.start", "bootanim");
+Note that start/stop relies on ctl.* to start/stop services.
+net.change: Whenever a net.* property is changed, net.change is set to the name of that property. So net.change always contains the name of the last net.* property that was modified.
+
+• The build system:
+Two property files are generated by the build system:
+/system/build.prop: Contains information about the build itself.
+/default.prop: Contains default values for certain key properties.
+
+• ueventd:
+init includes functionality to handle kernel hotplug events. When the /init binary is invoked through the /sbin/ueventd symbolic link, it immediately switches its identity from running as the regular init to running as ueventd.
+ueventd is the very first services started by the default init.rc. Unlike init, ueventd'd configuration files have a rather simple format:
+	/dev/<node>		<mode>		<user>		<group>
+
+• Boot logo:
+Not counting whatever the device's bootloader might display at startup, Android devices' screens typically go through four stages during boot:
+* Kernel boot screen: Kernel might either maintain the screen black until init starts, ot it might display a static logo.
+* Init boot logo: This is a text string or an image displayed very early by init while it initializes the console. (We'll discuss what init displays here below.)
+* Boot animation: This is a series of animated images, possibly a loop, that displays during the SurfaceFliger's start up. (We'll discuss the boot animation when we cover the Java userspace in the next chapter.)
+* Home screen: This is the starting screen of the Launcher.
+init attempts to load a logo image from the /initlogo.rle file and display it to the screen; if it doesn't find such a file, it displays the familiar text string. 
+If you'd like to change that string, have a look at console_init_action() in system/core/init/init.c.
+Two tools on the host are required to create a proper initlogo.rle:
+	$ cd device/acme/coyotepad
+	$ convert -depth 8 acmelogo.png rgb:acmelogo.raw
+	$ rgb2565 -rle < acmelogo.raw > acmelogo.rle
+This will take the acmelogo.png and convert it into an acmelogo.rle, which you can then copy by modifying the coyotepad's full_coyote.mk to add this snippet:
+	PRODUCT_COPY_FILES += \
+						  device/acme/coyotepad/acmelogo.rle:root/initlogo.rle
