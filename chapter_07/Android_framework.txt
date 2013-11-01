@@ -1,0 +1,26 @@
+1. Kicking-start the Framework:
+• Android framework includes the android.* packages, the System Services, the Android Runtime, and some of the native daemons.
+• Building the AOSP without the framework:
+Go to AOSP's source directory and type this:
+	$ BUILD_TINY_ANDROID = true make -j16
+This will get you a set if output images with the minimal set of Android components for a functional native Android user-space to run with a kernel. Mainly, you'll get Toolbox, Bionic, init, adbd, logcat, sh, and a few other key binaries and libraries. No part of the Android Frameworks, such as system services or any of the apps, will be included in those images.
+• Core building blocks:
+i)   The service manager:
+One of the first services started by init is the servicemanager.
+
+ii)  The Android Runtime and Zygote:
+* app_process lets you start a new Dalvik VM for running Android code straight from the command line. But this doesn't mean you can use it to start a regular Android app from command line. (You should use am for that purpose.)
+	service zygote /system/bin/app_process -Xzygote /system/bin --zygote --start-system-server
+	Usage: app_process [java-options] cmd-dir start-class-name [options]
+* app_process relies on the Android Runtime. Packaged as a shared library, libandroid_runtime.so, the Android Runtime is capable of starting and managing a Dalvik VM for the purpose of running Android-type code. Dalvik is a very raw, low-level VM that doesn't assume you're running Android-type code on top of it. To run Android-type code on top of Dalvik, the Runtime starts Dalvik with parameters specifically tailored for its use to run Java code that relies on the Android APIs.
+* You could write your own command-line tool in Java, using the Android API, and have it start separately from the rest of the Framework. In other words, it could be started and would run independently of the Zygote. 
+* But that still won't let you write a regular Android App that is started by app_process. Android apps can be started only by the Activity Manager using intents.
+* You'd better leave the app_process line in the init.rc intact, there's nothing that you can configure about the Zygote's startup. However, you can influence the way Android Runtime starts any of its Dalvik VM by modifying some of the system's global properties. Have a look at the AndroidRuntime::startVm(JavaVM ** pJavaVM, JNIEnv **pEnv) function in frameworks/base/core/jni/AndroidRuntime.cpp, to see which global properties are read by the Android Runtime to start a new VM.
+
+iii) Dalvik:
+Once the Zygote's VM is started, the com.android.internal.os.ZygoteInit class's main() function is called, and it will preload the entire set of Android packages, proceed to start system server, and then start looping around and listening for connections from the Activity Manager asking it to fork and start new Android apps. See startSystemServer() function in frameworks/base/core/java/com/android/internal/os/ZygoteInit.java.
+* Note that you can disable Zygote's startup by adding a "disabled" option in init.rc. So none of the Android Framework's part will start. This may be useful if you're in the process of debugging critical system errors or developing one of the HAL module.
+
+• System services:
+The very first system service to get started is the Surface Flinger. It is started right before the Zygote and runs indenpendently from the System Server  and the rest of system services. Its source code is in frameworks/native/services/surfaceflinger/. Its role is to composite the drawing surfaces used by apps into the final image displayed to the user.
+Because the Surface Flinger is started before the Zygote, the system's boot animation comes up much faster. To start the system server, Zygote forks and runs the com.android.server.SystemServer class's main() function, which loads the libandroid_servers.so library, then invokes native code in frameworks/base/cmds/system_server/library/system_init.cpp. In 4.2/Jelly 
