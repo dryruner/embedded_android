@@ -123,4 +123,90 @@ In some cases, you may want to back up and later restore the contents of /data:
 The first thing the command does is to stop the Zygote, then copying everything from /data and finishes by restarting the Zygote.
 
 • Service-specific utilities:
+Typically, using system services requires writing code that interacts with their binder-exposed API in some way. However, the AOSP also provides command-line utilities for directly interacting with certain system services. 
+* am:
+This is a command that allows user to directly invoke Activity Manager's functionality.
+	$ am [subcommand] [options]
+	* start an Activity: $ am start [-D] [-W] <INTENT>;
+							-D: enable debugging
+							-W: wait for launch to complete
+	* start a Service: $ am startservice <INTENT>
+	* send a broadcast Intent: $ am broadcast <INTENT>
+	* start an Instrumentation: $ am instrument [flags] <COMPONENT>
+							-r: print raw results
+							-e <NAME> <VALUE>: set argument <NAME> to <VALUE>
+							-p <FILE>: write profiling data to <FILE>
+							-w: wait for instrumentation to finish before returning.
+	* start profiling: $ am profile <process> start <file>
+	* stop profiling: $ am profile <process> stop
+	* start monitoring: $ am monitor [--gdb <port>]
+							--gdb: start gdbserv on the given port at crash/ANR (Application Not Responding)
+	<INTENT> specifications please see "Embedded Android" P279~280 for more details, some of the most used are listed:
+		[-a <ACTION>] [-d <DATA_URI>] [-t <MIME_TYPE>] [-c <CATEGORY>] [-n <COMPONENT>]
+	Example: $ am start -a android.intent.action.VIEW -d http://source.android.com; // start an web server
+			 $ am broadcast -a com.acme.coyotebirdmonitor.FAST_BIRD; // See "Embedded Android" P281
+			 $ am start -n com.android.settings/.Settings; // start the Settings activity of the settings app in the system.
+			 $ am monitor; // monitoring apps run by the Activity Manager. Note that if you click "Back", the command reports that the Launcher is resuming; while if you click the "Home" button, the Launcher is reported as starting.
+am is a shell script, see frameworks/based/cmds/am/am/. The script uses app_process to start Java code that implements am's functionality.
+Note that am is a extremely powerful and useful command, see the documentation on android website for more details.
+
+* pm:
+Package Manager gets its own command line tool - pm. See pm's help for more details.
+Example:
+	$ pm list packages; // Listing the installed packages
+	$ pm install FastBirds.apk; // Installing an app
+	$ pm uninstall com.acme.fastbirds; // Note that removing the app requires knowing its package name, not the original .apk's name.
+pm is also a shell script that starts Java code (use app_process).
+
+* svc:
+svc provides you with the ability to control several system services. Use $ svc to see the helper documentation. It could be used to control power, data, wifi, and usb.
+
+* input:
+input connects to the Window Manager system service and injects text or key events into the system.
+	$ input text <string>
+	$ input keyevent <event_code>
+	$ input [touchscreen|touchpad] tap <x> <y>
+	$ input [touchscreen|touchpad] swipe <x1> <y1> <x2> <y2>
+	For more see input's helper documentation.
+See frameworks/base/core/java/android/view/KeyEvent.java and frameworks/native/include/android/keycodes.h for the full list of key codes recognized by Android.
+
+* monkey:
+monkey can be used to provide random yet repeatable input to the application. See documentation for more details. Also see "Embedded Android" P289's script for more details.
+For a detailed understanding of the scripting language understood by monkey, along with the parameters each command can take, see monkey's script interpreting code in development/cmds/monkey/src/com/android/commands/monkey/MonkeySourceScript.java.
+monkey communicates with the Activity Manager, Window Manager and Package Manager. It's also a shell script that relies on app_process to start the Java code that implements the utility.
+
+* bmgr:
+See documentation.
+
+* stagefright:
+stagefright interacts with the Media Player service to allow you to do media playback. See $ stagefright -h for help. Example:
+	$ stagefright -a -o /sdcard/test.mp3; // play an .mp3 file.
+stagefright's source code is in frameworks/av/cmds/stagefright/. Note that it is coded in C.
+
+* Dalvik utilities:
+We've seen that we can send intents with am command to trigger the starting of new apps, each of which comes with its own Zygote-forked Dalvik instances. We've also seen how the app_process can be used to start Java-coded command-line tools using the Android Runtime. However, there're cases you may want to forgo all the Android-specific layers and dabble directly with Dalvik.
+i)   dalvikvm:
+To start just a Dalvik VM without any Android-specific functionality.
+	$ dalvikvm [options] class [argument...]
+	$ dalvikvm [options] -jar file.tar [argument...]
+See documentation for more details.
+dalvikvm is actually a raw Dalvik VM without any connection to "Android", it doesn't rely on the Zygote, nor does it include the Android Runtime. It simply starts a VM to run whatever class or JAR file you provide it.
+
+ii)  dvz:
+	$ dvz --help;
+Request a new Dalvik VM instance to be spawned from the zygote process. dvz actually acts in a similar fashion to the Activity Manager by requesting the Zygote to fork and start a new process. The only difference here is that the resulting process isn't managed by the Activity Manager.
+
+iii) dexdump:
+If you'd like to reverse-engineering Android apps or JAR files, you can use dexdump. See its documentation for more details.
+
+• Many ways to start Dalvik:
+command          Dalvik VM        Android Runtime       Zygote        Activity Manager         Mechanism
+dalvikvm            *                                                                          Using libdvm.so
+app_process         *                    *                                                     Using libandroid_runtime.so
+dvz                 *                    *                *                                    Using libcutils (See system/core/libcutils/zygote.c)
+am                  *                    *                *                   *                Talks to Activity Manager service
+* Note that am is the only command that provides with a Dalvik VM that is controlled by the Activity Manager. am is also the only command that allows use to automatically trigger the execution of code contained in an .apk. All other commands require us to provide a specific class or JAR file.
+
+
+3. Supported daemons:
 
