@@ -209,4 +209,27 @@ am                  *                    *                *                   * 
 
 
 3. Supported daemons:
+Android's permission model requires app developers who need to call on privileged operations to request specific permissions at build time.
+	...
+	<uses-permission android:name="android.permission.INTERNET" />
+	<uses-permission android:name="android.permission.WAKE_LOCK" />
+	...
+Much like apps, system services can't typically use system calls that require root privileges nor access key devices in /dev.
+• installd:
+installd is started in init.rc and opens /dev/socket/installd and listens for connections, and therefore listens for commands from the Package Manager. It doesn't have a configuration file or any command-line parameters. There's also no command-line tool to communicate with it independently of the Package Manager.
+• vold:
+vold takes care of many of the key operations required by the Mount Service, such as mounting and formatting volumes. vold also has a configuration file, /etc/vold.fstab. When vold starts, it parses this file and then opens /dev/socket/vold to listen for connections and commands. There's also a command-line tool for communicating directly with vold:
+	$ vdc <monitor> [arg1] [arg2...]
+	$ vdc <cmd> [arg1] [arg2...]
+	For example: $ vdc dump;
+See system/vold/CommandListener.cpp for more details of vold's command set.
+• netd:
+	$ ndc interface list
+• rild:
+The Phone system service, which is hosted in the Phone app, uses rild to communicate with the Baseband Processor. It doesn't have a configuration file.
+• keystore:
+Here's a command-line utility for communicating with keystore: keystore_cli. Find both the sources of keystore and keystore_cli in system/security/keystore/.
 
+
+4. Hardware abstraction layer (HAL):
+Android relies on HAL to interface with hardware. System services also never interact with devices through /dev entries directly. Instead, they go through HAL modules, typically shared libraries, to talk to hardware. Android's HAL implementation is found in hardware/. You'll find the definitions of the interfaces between the Frameworks and HAL modules in header files in hardware/libhardware/include/hardware/ and hardware/libhardware_legacy/include/hardware_legacy. You'll also find example implementations of some HAL modules in device/.
