@@ -1,0 +1,235 @@
+1. Kicking-start the Framework:
+• Android framework includes the android.* packages, the System Services, the Android Runtime, and some of the native daemons.
+• Building the AOSP without the framework:
+Go to AOSP's source directory and type this:
+	$ BUILD_TINY_ANDROID = true make -j16
+This will get you a set if output images with the minimal set of Android components for a functional native Android user-space to run with a kernel. Mainly, you'll get Toolbox, Bionic, init, adbd, logcat, sh, and a few other key binaries and libraries. No part of the Android Frameworks, such as system services or any of the apps, will be included in those images.
+• Core building blocks:
+i)   The service manager:
+One of the first services started by init is the servicemanager.
+
+ii)  The Android Runtime and Zygote:
+* app_process lets you start a new Dalvik VM for running Android code straight from the command line. But this doesn't mean you can use it to start a regular Android app from command line. (You should use am for that purpose.)
+	service zygote /system/bin/app_process -Xzygote /system/bin --zygote --start-system-server
+	Usage: app_process [java-options] cmd-dir start-class-name [options]
+* app_process relies on the Android Runtime. Packaged as a shared library, libandroid_runtime.so, the Android Runtime is capable of starting and managing a Dalvik VM for the purpose of running Android-type code. Dalvik is a very raw, low-level VM that doesn't assume you're running Android-type code on top of it. To run Android-type code on top of Dalvik, the Runtime starts Dalvik with parameters specifically tailored for its use to run Java code that relies on the Android APIs.
+* You could write your own command-line tool in Java, using the Android API, and have it start separately from the rest of the Framework. In other words, it could be started and would run independently of the Zygote. 
+* But that still won't let you write a regular Android App that is started by app_process. Android apps can be started only by the Activity Manager using intents.
+* You'd better leave the app_process line in the init.rc intact, there's nothing that you can configure about the Zygote's startup. However, you can influence the way Android Runtime starts any of its Dalvik VM by modifying some of the system's global properties. Have a look at the AndroidRuntime::startVm(JavaVM ** pJavaVM, JNIEnv **pEnv) function in frameworks/base/core/jni/AndroidRuntime.cpp, to see which global properties are read by the Android Runtime to start a new VM.
+
+iii) Dalvik:
+Once the Zygote's VM is started, the com.android.internal.os.ZygoteInit class's main() function is called, and it will preload the entire set of Android packages, proceed to start system server, and then start looping around and listening for connections from the Activity Manager asking it to fork and start new Android apps. See startSystemServer() function in frameworks/base/core/java/com/android/internal/os/ZygoteInit.java.
+* Note that you can disable Zygote's startup by adding a "disabled" option in init.rc. So none of the Android Framework's part will start. This may be useful if you're in the process of debugging critical system errors or developing one of the HAL module.
+
+• System services:
+The very first system service to get started is the Surface Flinger. It is started right before the Zygote and runs indenpendently from the System Server  and the rest of system services. Its source code is in frameworks/native/services/surfaceflinger/. Its role is to composite the drawing surfaces used by apps into the final image displayed to the user.
+Because the Surface Flinger is started before the Zygote, the system's boot animation comes up much faster. To start the system server, Zygote forks and runs the com.android.server.SystemServer class's main() function, which loads the libandroid_servers.so library, then invokes native code in frameworks/base/cmds/system_server/library/system_init.cpp. In 4.2/Jelly Bean, the Surface Flinger is started separately, and the only C-coded system service started by system_server is the Sensor Service. The code is in frameworks/base/services/java/com/abdroid/server/SystemServer.java. 
+* What is /system/bin/system_server?
+This binary has nothing to do with the startup of the System Server or with any of system services. It's very likely that this is a legacy utility from Android's early days. 
+* mediaserver, whose source code is in frameworks/av/media. Note that you cannot disable mediaserver in init.rc, or the system will hang there.
+* The Phone app, which provides the Phone system service. Its manifest file has the android::persistent property of the application XML element set to true. This indicates the system that this app should not be lifecycle managed, which therefore enables it to house a system service. The Phone app way of providing a system service is very interesting, because it opens the door for us to emulate its example and to add system services as apps without having to modify the sources of default system services in frameworks/base/services/.
+
+• Boot animation:
+See init.rc, it is Surface Flinger that actually starts the bootanim service. See the code in frameworks/native/services/surfaceflinger/SurfaceFlinger.cpp: property_set("ctl.start", "bootanim");
+* bootanimation.zip:
+The bootanimation.zip is a regular, uncompressed ZIP file with at least a desc.txt file at the top-level directory, and a bunch of directories containing PNG files. The PNG files are animated in sequence according to the rules in the desc.txt file. Note that bootanimation doesn't support anything but PNG files. Here are the semantics of desc.txt:
+	<width> <height> <fps>
+	p <count> <pause> <path>
+	p <count> <pause> <path>
+Each line begins with 'p' is a part of the animation. For each part, you must provide the number of lines this part is played (count), the number of frames to pause after each time the part is paused (pause), and the directory where that part of the animation is located (path). If the count is 0, the part will loop playing until the system has finished booting and the Launcher starts.
+* Disabling the boot animation:
+Just use setprop in init.rc to set the debug.sf.nobootanimation to 1:
+	setprop debug.sf.nobootanimation 1
+In this case, the screen will go black after the boot logo has been displayed, and stay black until the Launcher app displays the home screen.
+
+• Dex optimization:
+One of the Package Manager's reponsibilities is also to make sure that JIT-ready versions of any DEX byte-code are available prior to the corresponding Java code ever executing. To achieve this, the Package Manager's constructor goes through all .apk and .jar files in system and requests that installd run the dexopt command on them. This process should happen on the first boot only. Subsequently, the /data/dalvik-cache/ directory will contain JIT-ready versions of all .dex files. 
+* You can actually stop this optimization process at boot time and do it at build time instead:
+	$ make WITH_DEXPREOPT=true -j16
+When this option is used, the /data/dalvik-cache directory ends up being empty on the target after the first boot. Instead, at build time, .odex files are placed side by side in the same filesystem path as their corresponding .jar and .apk files.
+
+• App startup:
+* Input methods:
+One of the earliest types of apps to start are input methods. See "Creating an Input Method" blog post on the Android Developers Blog, input methods are actually carefully crafted services.
+* Persistent apps:
+Apps that have the android::persistent="true" attribute in the <application> element of their manifest file will be automatically spawned at startup by the Activity Manager. Should such app ever die, it will also be automatically restarted by the Activity Manager. 
+The status bar and the phone app, for example, running as com.android.systemui and com.android.phone processes, are persistent apps.
+* Home screen:
+Typically there's only one home screen app, and it reacts to the Intent.CATEGORY_HOME intent, which is sent by the Activity Manager at the end of the system services' startup.
+	<intent-filter>
+		<action android:name="android.intent.action.MAIN" />
+		<category android:name="android.intent.category.HOME" />
+		...
+	</intent-filter>
+If more than one app reacts to that intent, users will get a dialog asking them which of the home screen they want to use.
+Note that this intent isn't sent just at startup. Depending on the state of the system, the Activity Manager will send this intent whenever it needs to bring the home screen to the foreground.
+* The Activity Manager also broadcasts the Intent.BOOT_COMPLETED intent at startup. A number of stock apps in the AOSP actually rely on this intent, such as Media provider, Calendar provider, Mms app, and Email app. One example of the broadcast receiver:
+	<receiver android:name="MediaScannerReceiver">
+		<intent-filter>
+			<action android:name="android.intent.action.BOOT_COMPLETED" />
+		</intent-filter>
+		<intent-filter>
+			<action android:name="android.intent.action.MEDIA_MOUNTED" />
+			<data android:scheme="file" />
+		</intent-filter>
+	</receiver>
+In order to receive this intent, apps must explicitly request permission to do so:
+	<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+* APPWIDGET_UPDATE intent:
+The App Widget Service, which is itself a system service, registers itself to receive the Intent.BOOT_COMPLETED. It uses the receipt of that intent as a trigger to activate all app widgets in the system by sending Intent.APPWIDGET_UPDATE. 
+	<receiver android:name=".SearchWidgetProvider" android:label="@string/app_name">
+		<intent-filter>
+			<action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+		</intent-filter>
+	</receiver>
+
+
+2. Utilities and commands:
+Many of the commands here are located in frameworks/base/cmds/ directory of the AOSP sources, and some are in frameworks/native/cmds/.
+• service:
+The service command allows you to interact with any system service registered with the Service Manager.
+	$ service -h
+	Usage:  service list
+			service check <SERVICE>
+			service call <SERVICE> CODE ...
+The "service call" directly invoke system services' binder-exposed methods. In order to do that, you first need to understand that service's interface. For example: see frameworks/base/core/java/com/android/internal/statusbar/IStatusBarService.aidl. service call actually needs a method code, not a method's name. To find the code matching the method names defined in the interface, you'll need to look up the code generated by the aidl tool based on the interface definition. For example, see the IStatusBarService.java file generated in out/target/common/obj/JAVA_LIBRARIES/framework_intermediates/src/core/java/com/android/internal/statusbar/. Also note that frameworks/base/core/java/android/os/IBinder.java:
+	int FIRST_CALL_TRANSACTION = 0x00000001;
+So:
+	$ service call statusbar 1; // expand the statusbar
+	$ service call statusbar 2; // collapse the statusbar
+HINT:
+try using grep on the AOSP's frameworks/ directory and out/target/common/ to find all instances of FIRST_CALL_TRANSACTION.
+
+• dumpsys:
+In order to query system services' internal state, every system service implements a dump() method.
+	$ dumpsys [<service>]
+
+• dumpstate:
+If you want to get a snapshot of the entire system, not just the system services, try using dumpstate.
+	Usage: dumpstate [-b soundfile] [-e soundfile] [-o file [-d] [-p] [-z]] [-s] [-q];
+		-o: write to file
+		-d: append date to filename (requires -o)
+		-z: gzip output (requires -o)
+		-p: capture screenshot to filename.png (requires -o)
+		-s: write output to control socket (for init)
+		-b: play sound file instead of vibrate, at beginning of job.
+		-e: play sound file instead of vibrate, at end of job.
+		-q: disable vibrate
+
+• rawbu:
+In some cases, you may want to back up and later restore the contents of /data:
+	$ rawbu backup /sdcard/backup.dat; // for more, see $ rawbu help
+	$ rawbu restore /sdcard/backup.dat;
+The first thing the command does is to stop the Zygote, then copying everything from /data and finishes by restarting the Zygote.
+
+• Service-specific utilities:
+Typically, using system services requires writing code that interacts with their binder-exposed API in some way. However, the AOSP also provides command-line utilities for directly interacting with certain system services. 
+* am:
+This is a command that allows user to directly invoke Activity Manager's functionality.
+	$ am [subcommand] [options]
+	* start an Activity: $ am start [-D] [-W] <INTENT>;
+							-D: enable debugging
+							-W: wait for launch to complete
+	* start a Service: $ am startservice <INTENT>
+	* send a broadcast Intent: $ am broadcast <INTENT>
+	* start an Instrumentation: $ am instrument [flags] <COMPONENT>
+							-r: print raw results
+							-e <NAME> <VALUE>: set argument <NAME> to <VALUE>
+							-p <FILE>: write profiling data to <FILE>
+							-w: wait for instrumentation to finish before returning.
+	* start profiling: $ am profile <process> start <file>
+	* stop profiling: $ am profile <process> stop
+	* start monitoring: $ am monitor [--gdb <port>]
+							--gdb: start gdbserv on the given port at crash/ANR (Application Not Responding)
+	<INTENT> specifications please see "Embedded Android" P279~280 for more details, some of the most used are listed:
+		[-a <ACTION>] [-d <DATA_URI>] [-t <MIME_TYPE>] [-c <CATEGORY>] [-n <COMPONENT>]
+	Example: $ am start -a android.intent.action.VIEW -d http://source.android.com; // start an web server
+			 $ am broadcast -a com.acme.coyotebirdmonitor.FAST_BIRD; // See "Embedded Android" P281
+			 $ am start -n com.android.settings/.Settings; // start the Settings activity of the settings app in the system.
+			 $ am monitor; // monitoring apps run by the Activity Manager. Note that if you click "Back", the command reports that the Launcher is resuming; while if you click the "Home" button, the Launcher is reported as starting.
+am is a shell script, see frameworks/based/cmds/am/am/. The script uses app_process to start Java code that implements am's functionality.
+Note that am is a extremely powerful and useful command, see the documentation on android website for more details.
+
+* pm:
+Package Manager gets its own command line tool - pm. See pm's help for more details.
+Example:
+	$ pm list packages; // Listing the installed packages
+	$ pm install FastBirds.apk; // Installing an app
+	$ pm uninstall com.acme.fastbirds; // Note that removing the app requires knowing its package name, not the original .apk's name.
+pm is also a shell script that starts Java code (use app_process).
+
+* svc:
+svc provides you with the ability to control several system services. Use $ svc to see the helper documentation. It could be used to control power, data, wifi, and usb.
+
+* input:
+input connects to the Window Manager system service and injects text or key events into the system.
+	$ input text <string>
+	$ input keyevent <event_code>
+	$ input [touchscreen|touchpad] tap <x> <y>
+	$ input [touchscreen|touchpad] swipe <x1> <y1> <x2> <y2>
+	For more see input's helper documentation.
+See frameworks/base/core/java/android/view/KeyEvent.java and frameworks/native/include/android/keycodes.h for the full list of key codes recognized by Android.
+
+* monkey:
+monkey can be used to provide random yet repeatable input to the application. See documentation for more details. Also see "Embedded Android" P289's script for more details.
+For a detailed understanding of the scripting language understood by monkey, along with the parameters each command can take, see monkey's script interpreting code in development/cmds/monkey/src/com/android/commands/monkey/MonkeySourceScript.java.
+monkey communicates with the Activity Manager, Window Manager and Package Manager. It's also a shell script that relies on app_process to start the Java code that implements the utility.
+
+* bmgr:
+See documentation.
+
+* stagefright:
+stagefright interacts with the Media Player service to allow you to do media playback. See $ stagefright -h for help. Example:
+	$ stagefright -a -o /sdcard/test.mp3; // play an .mp3 file.
+stagefright's source code is in frameworks/av/cmds/stagefright/. Note that it is coded in C.
+
+* Dalvik utilities:
+We've seen that we can send intents with am command to trigger the starting of new apps, each of which comes with its own Zygote-forked Dalvik instances. We've also seen how the app_process can be used to start Java-coded command-line tools using the Android Runtime. However, there're cases you may want to forgo all the Android-specific layers and dabble directly with Dalvik.
+i)   dalvikvm:
+To start just a Dalvik VM without any Android-specific functionality.
+	$ dalvikvm [options] class [argument...]
+	$ dalvikvm [options] -jar file.tar [argument...]
+See documentation for more details.
+dalvikvm is actually a raw Dalvik VM without any connection to "Android", it doesn't rely on the Zygote, nor does it include the Android Runtime. It simply starts a VM to run whatever class or JAR file you provide it.
+
+ii)  dvz:
+	$ dvz --help;
+Request a new Dalvik VM instance to be spawned from the zygote process. dvz actually acts in a similar fashion to the Activity Manager by requesting the Zygote to fork and start a new process. The only difference here is that the resulting process isn't managed by the Activity Manager.
+
+iii) dexdump:
+If you'd like to reverse-engineering Android apps or JAR files, you can use dexdump. See its documentation for more details.
+
+• Many ways to start Dalvik:
+command          Dalvik VM        Android Runtime       Zygote        Activity Manager         Mechanism
+dalvikvm            *                                                                          Using libdvm.so
+app_process         *                    *                                                     Using libandroid_runtime.so
+dvz                 *                    *                *                                    Using libcutils (See system/core/libcutils/zygote.c)
+am                  *                    *                *                   *                Talks to Activity Manager service
+* Note that am is the only command that provides with a Dalvik VM that is controlled by the Activity Manager. am is also the only command that allows use to automatically trigger the execution of code contained in an .apk. All other commands require us to provide a specific class or JAR file.
+
+
+3. Supported daemons:
+Android's permission model requires app developers who need to call on privileged operations to request specific permissions at build time.
+	...
+	<uses-permission android:name="android.permission.INTERNET" />
+	<uses-permission android:name="android.permission.WAKE_LOCK" />
+	...
+Much like apps, system services can't typically use system calls that require root privileges nor access key devices in /dev.
+• installd:
+installd is started in init.rc and opens /dev/socket/installd and listens for connections, and therefore listens for commands from the Package Manager. It doesn't have a configuration file or any command-line parameters. There's also no command-line tool to communicate with it independently of the Package Manager.
+• vold:
+vold takes care of many of the key operations required by the Mount Service, such as mounting and formatting volumes. vold also has a configuration file, /etc/vold.fstab. When vold starts, it parses this file and then opens /dev/socket/vold to listen for connections and commands. There's also a command-line tool for communicating directly with vold:
+	$ vdc <monitor> [arg1] [arg2...]
+	$ vdc <cmd> [arg1] [arg2...]
+	For example: $ vdc dump;
+See system/vold/CommandListener.cpp for more details of vold's command set.
+• netd:
+	$ ndc interface list
+• rild:
+The Phone system service, which is hosted in the Phone app, uses rild to communicate with the Baseband Processor. It doesn't have a configuration file.
+• keystore:
+Here's a command-line utility for communicating with keystore: keystore_cli. Find both the sources of keystore and keystore_cli in system/security/keystore/.
+
+
+4. Hardware abstraction layer (HAL):
+Android relies on HAL to interface with hardware. System services also never interact with devices through /dev entries directly. Instead, they go through HAL modules, typically shared libraries, to talk to hardware. Android's HAL implementation is found in hardware/. You'll find the definitions of the interfaces between the Frameworks and HAL modules in header files in hardware/libhardware/include/hardware/ and hardware/libhardware_legacy/include/hardware_legacy. You'll also find example implementations of some HAL modules in device/.
