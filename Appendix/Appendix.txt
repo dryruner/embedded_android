@@ -1,0 +1,14 @@
+• Legacy user-space:
+Default ps: Toobox -> ps $ ps -t
+Busybox ps: $ ps -T
+
+• Adding support for new hardware:
+Example on GITHUB opersys-hal-hw project.
+
+• Customizing the default lists of packages
+
+• Default init.rc files:
+* 4.2/Jelly Bean uses the import mechanism to bring in other .rc files. (init.usb.rc; init.${ro.hardware}.rc; init.trace.rc.)
+The sys.usb.config global property is what controls the state of the USB connection. It is either explicitly set by the code in frameworks/base/services/java/com/android/server/usb/UsbDeviceManager.java or updated based on changes to persist.sys.usb.config (see the property-trigger in init.usb.rc, last part.)
+* init.trace.rc:
+Android has included a systrace command for use by app developers. The systrace on the host side depends on an atrace tool on the target, which is invoked via ADB. atrace uses kernel's ftrace functionality to trace the system. init.trace.rc sets up ftrace for use by Android's tracing tools.
